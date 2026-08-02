@@ -1,0 +1,526 @@
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <initguid.h>
+#include <windows.h>
+#include <shlwapi.h>
+#include <wrl/client.h>
+
+#include <d3d11.h>
+#include <dxgi1_4.h>
+#include <d2d1_3.h>
+#include <d2d1_3helper.h>
+#include <d2d1effects.h>
+
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <map>
+#include <vector>
+#include <algorithm>
+
+#include "../includes/SVGRasterizer.h"
+
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "shlwapi.lib")
+
+struct FilteredNodeInfo {
+    std::wstring elementId;
+    float stdDev;
+};
+
+struct FilteredNode {
+    Microsoft::WRL::ComPtr<ID2D1SvgElement> element;
+    float stdDev;
+};
+
+struct SavedElementState {
+    Microsoft::WRL::ComPtr<ID2D1SvgElement> element;
+    bool hadDisplayAttr;
+    std::wstring oldDisplayVal;
+};
+
+static std::string ReadFileToString(const char* filePath) {
+    std::ifstream file(filePath, std::ios::binary);
+    std::stringstream buffer;
+    if (!file.is_open()) return "";
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+static std::vector<FilteredNodeInfo> ProcessSvgFilters(std::string& xmlContent) {
+    std::map<std::string, float> filterMap;
+    std::vector<FilteredNodeInfo> result;
+    size_t filterPos, filterEnd, idPos, endId, blurPos, devPos, endDev, tagPos, tagEnd, autoIdCounter, spacePos;
+    std::string filterBlock, filterId, devStr, tagBlock, elemIdStr, autoId, needle1, needle2, injected;
+    float stdDev;
+    bool foundFilter;
+
+    filterPos = 0;
+    while ((filterPos = xmlContent.find("<filter", filterPos)) != std::string::npos) {
+        filterEnd = xmlContent.find("</filter>", filterPos);
+        if (filterEnd == std::string::npos) break;
+
+        filterBlock = xmlContent.substr(filterPos, filterEnd - filterPos + 9);
+
+        filterId.clear();
+        idPos = filterBlock.find("id=\"");
+        if (idPos != std::string::npos) {
+            idPos += 4;
+            endId = filterBlock.find("\"", idPos);
+            if (endId != std::string::npos) {
+                filterId = filterBlock.substr(idPos, endId - idPos);
+            }
+        }
+
+        stdDev = 0.0f;
+        blurPos = filterBlock.find("feGaussianBlur");
+        if (blurPos != std::string::npos) {
+            devPos = filterBlock.find("stdDeviation=\"", blurPos);
+            if (devPos != std::string::npos) {
+                devPos += 14;
+                endDev = filterBlock.find("\"", devPos);
+                if (endDev != std::string::npos) {
+                    devStr = filterBlock.substr(devPos, endDev - devPos);
+                    stdDev = static_cast<float>(atof(devStr.c_str()));
+                }
+            }
+        }
+
+        if (!filterId.empty() && stdDev > 0.0f) {
+            filterMap[filterId] = stdDev;
+        }
+
+        filterPos = filterEnd + 9;
+    }
+
+    if (filterMap.empty()) return result;
+
+    autoIdCounter = 0;
+    tagPos = 0;
+    while ((tagPos = xmlContent.find("<", tagPos)) != std::string::npos) {
+        if (xmlContent.compare(tagPos, 5, "<?xml") == 0 ||
+            xmlContent.compare(tagPos, 4, "<!--") == 0 ||
+            xmlContent.compare(tagPos, 5, "<defs") == 0 ||
+            xmlContent.compare(tagPos, 7, "<filter") == 0 ||
+            xmlContent.compare(tagPos, 2, "</") == 0) {
+            tagPos++;
+            continue;
+        }
+
+        tagEnd = xmlContent.find(">", tagPos);
+        if (tagEnd == std::string::npos) break;
+
+        tagBlock = xmlContent.substr(tagPos, tagEnd - tagPos + 1);
+
+        foundFilter = false;
+        stdDev = 0.0f;
+
+        for (const auto& pair : filterMap) {
+            needle1 = "filter:url(#" + pair.first + ")";
+            needle2 = "filter=\"url(#" + pair.first + ")\"";
+            if (tagBlock.find(needle1) != std::string::npos || tagBlock.find(needle2) != std::string::npos) {
+                foundFilter = true;
+                stdDev = pair.second;
+                break;
+            }
+        }
+
+        if (foundFilter) {
+            elemIdStr.clear();
+            idPos = tagBlock.find("id=\"");
+            if (idPos != std::string::npos) {
+                idPos += 4;
+                endId = tagBlock.find("\"", idPos);
+                if (endId != std::string::npos) {
+                    elemIdStr = tagBlock.substr(idPos, endId - idPos);
+                }
+            } else {
+                autoId = "ag_filter_elem_" + std::to_string(autoIdCounter++);
+                elemIdStr = autoId;
+                spacePos = tagBlock.find(' ');
+                if (spacePos != std::string::npos) {
+                    injected = " id=\"" + autoId + "\"";
+                    xmlContent.insert(tagPos + spacePos, injected);
+                    tagEnd += injected.size();
+                }
+            }
+
+            if (!elemIdStr.empty()) {
+                FilteredNodeInfo info;
+                info.elementId = std::wstring(elemIdStr.begin(), elemIdStr.end());
+                info.stdDev = stdDev;
+                result.push_back(info);
+            }
+        }
+
+        tagPos = tagEnd + 1;
+    }
+
+    return result;
+}
+
+static std::vector<SavedElementState> IsolateChild(const std::vector<Microsoft::WRL::ComPtr<ID2D1SvgElement>>& children, size_t activeIndex) {
+    std::vector<SavedElementState> savedStates;
+    wchar_t attrBuf[512];
+    size_t j;
+
+    for (j = 0; j < children.size(); j++) {
+        if (j != activeIndex) {
+            SavedElementState state;
+            state.element = children[j];
+            state.hadDisplayAttr = false;
+
+            if (SUCCEEDED(children[j]->GetAttributeValue(L"display", D2D1_SVG_ATTRIBUTE_STRING_TYPE_SVG, attrBuf, 512))) {
+                state.hadDisplayAttr = true;
+                state.oldDisplayVal = attrBuf;
+            }
+
+            if (!state.hadDisplayAttr || state.oldDisplayVal != L"none") {
+                children[j]->SetAttributeValue(L"display", D2D1_SVG_ATTRIBUTE_STRING_TYPE_SVG, L"none");
+                savedStates.push_back(state);
+            }
+        }
+    }
+    return savedStates;
+}
+
+static void RestoreSavedElementStates(const std::vector<SavedElementState>& savedStates) {
+    for (const auto& state : savedStates) {
+        if (state.hadDisplayAttr) {
+            state.element->SetAttributeValue(L"display", D2D1_SVG_ATTRIBUTE_STRING_TYPE_SVG, state.oldDisplayVal.c_str());
+        } else {
+            state.element->RemoveAttribute(L"display");
+        }
+    }
+}
+
+static void CollectLeafLayerElements(ID2D1SvgElement* parent, std::vector<Microsoft::WRL::ComPtr<ID2D1SvgElement>>& outElements) {
+    Microsoft::WRL::ComPtr<ID2D1SvgElement> child, nextChild;
+    wchar_t tagBuf[128];
+
+    if (!parent) return;
+
+    if (parent->HasChildren()) {
+        parent->GetFirstChild(&child);
+        while (child) {
+            tagBuf[0] = L'\0';
+            child->GetTagName(tagBuf, 128);
+
+            if (wcscmp(tagBuf, L"defs") == 0) {
+                /* Skip defs */
+            } else if (wcscmp(tagBuf, L"g") == 0) {
+                /* Recurse into group containers */
+                CollectLeafLayerElements(child.Get(), outElements);
+            } else {
+                /* Individual layer elements (e.g. paths) */
+                outElements.push_back(child);
+            }
+
+            parent->GetNextChild(child.Get(), &nextChild);
+            child = nextChild;
+        }
+    }
+}
+
+static float GetFilterStdDevForChild(ID2D1SvgElement* child, const std::vector<FilteredNode>& filteredNodes) {
+    size_t fnIdx;
+    if (!child) return -1.0f;
+
+    for (fnIdx = 0; fnIdx < filteredNodes.size(); fnIdx++) {
+        if (!filteredNodes[fnIdx].element) continue;
+        if (child == filteredNodes[fnIdx].element.Get()) {
+            return filteredNodes[fnIdx].stdDev;
+        }
+    }
+    return -1.0f;
+}
+
+static bool RenderSvgAtSize(
+    ID3D11Device* d3dDevice,
+    ID3D11DeviceContext* d3dCtx,
+    ID2D1DeviceContext5* d2dCtx,
+    ID2D1SvgDocument* svgDoc,
+    ID2D1SvgElement* containerElem,
+    const std::vector<FilteredNode>& filteredNodes,
+    uint32_t renderW, uint32_t renderH,
+    float scaleX, float scaleY,
+    RwRaster* raster, RwUInt8 mipLevel)
+{
+    HRESULT hr;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> renderTex, stagingTex, offscreenTex;
+    Microsoft::WRL::ComPtr<IDXGISurface> surface, offscreenSurface;
+    Microsoft::WRL::ComPtr<ID2D1Bitmap1> bitmap, offscreenBitmap;
+    Microsoft::WRL::ComPtr<ID2D1Effect> blurEffect;
+    D3D11_TEXTURE2D_DESC rtDesc, stDesc;
+    D2D1_BITMAP_PROPERTIES1 bmpProps;
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    RwUInt8 *pixels, *srcRow, *dstRow;
+    RwInt32 dstStride;
+    uint32_t row;
+    size_t k;
+    float nodeStdDev, scaledStdDev;
+    std::vector<Microsoft::WRL::ComPtr<ID2D1SvgElement>> layerChildren;
+    std::vector<SavedElementState> savedStates;
+
+    pixels = nullptr;
+    srcRow = nullptr;
+    dstRow = nullptr;
+
+    /* Create render target texture at mip dimensions */
+    memset(&rtDesc, 0, sizeof(rtDesc));
+    rtDesc.Width = renderW;
+    rtDesc.Height = renderH;
+    rtDesc.MipLevels = 1;
+    rtDesc.ArraySize = 1;
+    rtDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    rtDesc.SampleDesc.Count = 1;
+    rtDesc.Usage = D3D11_USAGE_DEFAULT;
+    rtDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    hr = d3dDevice->CreateTexture2D(&rtDesc, nullptr, &renderTex);
+    if (FAILED(hr)) return false;
+
+    hr = renderTex.As(&surface);
+    if (FAILED(hr)) return false;
+
+    memset(&bmpProps, 0, sizeof(bmpProps));
+    bmpProps.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    bmpProps.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    bmpProps.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+
+    hr = d2dCtx->CreateBitmapFromDxgiSurface(surface.Get(), &bmpProps, &bitmap);
+    if (FAILED(hr)) return false;
+
+    d2dCtx->SetTarget(bitmap.Get());
+    d2dCtx->BeginDraw();
+    d2dCtx->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+
+    CollectLeafLayerElements(containerElem, layerChildren);
+
+    if (filteredNodes.empty() || layerChildren.empty()) {
+        /* Fast Path: Standard document rendering */
+        d2dCtx->SetTransform(D2D1::Matrix3x2F::Scale(scaleX, scaleY));
+        d2dCtx->DrawSvgDocument(svgDoc);
+    } else {
+        /* Exact In-Order Z-Pass Sandwich Rendering */
+        for (k = 0; k < layerChildren.size(); k++) {
+            savedStates = IsolateChild(layerChildren, k);
+            nodeStdDev = GetFilterStdDevForChild(layerChildren[k].Get(), filteredNodes);
+
+            if (nodeStdDev > 0.0f) {
+                /* Filtered/Blurred Layer: Render offscreen -> GPU Gaussian Blur -> Blend onto canvas */
+                hr = d3dDevice->CreateTexture2D(&rtDesc, nullptr, &offscreenTex);
+                if (SUCCEEDED(hr) && SUCCEEDED(offscreenTex.As(&offscreenSurface))) {
+                    bmpProps.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+                    hr = d2dCtx->CreateBitmapFromDxgiSurface(offscreenSurface.Get(), &bmpProps, &offscreenBitmap);
+                    if (SUCCEEDED(hr)) {
+                        d2dCtx->SetTarget(offscreenBitmap.Get());
+                        d2dCtx->SetTransform(D2D1::Matrix3x2F::Scale(scaleX, scaleY));
+                        d2dCtx->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+                        d2dCtx->DrawSvgDocument(svgDoc);
+
+                        d2dCtx->SetTarget(bitmap.Get());
+                        d2dCtx->SetTransform(D2D1::Matrix3x2F::Identity());
+
+                        hr = d2dCtx->CreateEffect(CLSID_D2D1GaussianBlur, &blurEffect);
+                        if (SUCCEEDED(hr)) {
+                            scaledStdDev = nodeStdDev * scaleX * 4.0f;
+                            blurEffect->SetInput(0, offscreenBitmap.Get());
+                            blurEffect->SetValue(D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, scaledStdDev);
+                            blurEffect->SetValue(D2D1_GAUSSIANBLUR_PROP_BORDER_MODE, D2D1_BORDER_MODE_SOFT);
+                            d2dCtx->DrawImage(blurEffect.Get());
+                        }
+                    }
+                }
+            } else {
+                /* Unblurred Layer: Render crisp directly into main bitmap at current Z-index */
+                d2dCtx->SetTarget(bitmap.Get());
+                d2dCtx->SetTransform(D2D1::Matrix3x2F::Scale(scaleX, scaleY));
+                d2dCtx->DrawSvgDocument(svgDoc);
+            }
+
+            RestoreSavedElementStates(savedStates);
+        }
+    }
+
+    hr = d2dCtx->EndDraw();
+    d2dCtx->SetTransform(D2D1::Matrix3x2F::Identity());
+    d2dCtx->SetTarget(nullptr);
+
+    if (FAILED(hr)) return false;
+
+    /* Read back pixels via staging texture */
+    memset(&stDesc, 0, sizeof(stDesc));
+    stDesc.Width = renderW;
+    stDesc.Height = renderH;
+    stDesc.MipLevels = 1;
+    stDesc.ArraySize = 1;
+    stDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    stDesc.SampleDesc.Count = 1;
+    stDesc.Usage = D3D11_USAGE_STAGING;
+    stDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    hr = d3dDevice->CreateTexture2D(&stDesc, nullptr, &stagingTex);
+    if (FAILED(hr)) return false;
+
+    d3dCtx->CopyResource(stagingTex.Get(), renderTex.Get());
+
+    memset(&mapped, 0, sizeof(mapped));
+    hr = d3dCtx->Map(stagingTex.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr)) return false;
+
+    /* Write into the RwRaster mip level */
+    pixels = RwRasterLock(raster, mipLevel, rwRASTERLOCKWRITE);
+    if (pixels) {
+        dstStride = raster->stride;
+        for (row = 0; row < renderH; row++) {
+            srcRow = static_cast<RwUInt8*>(mapped.pData) + row * mapped.RowPitch;
+            dstRow = pixels + row * dstStride;
+            memcpy(dstRow, srcRow, renderW * 4);
+        }
+        RwRasterUnlock(raster);
+    }
+
+    d3dCtx->Unmap(stagingTex.Get(), 0);
+    return (pixels != nullptr);
+}
+
+RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height) {
+    HRESULT hr;
+    D3D_FEATURE_LEVEL featureLevels[2];
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d11Device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3d11Context;
+    Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+    Microsoft::WRL::ComPtr<ID2D1Factory3> d2dFactory;
+    Microsoft::WRL::ComPtr<ID2D1Device2> d2dDevice;
+    Microsoft::WRL::ComPtr<ID2D1DeviceContext2> d2dContext2;
+    Microsoft::WRL::ComPtr<ID2D1DeviceContext5> d2dContext;
+    Microsoft::WRL::ComPtr<IStream> stream;
+    Microsoft::WRL::ComPtr<ID2D1SvgDocument> svgDoc;
+    Microsoft::WRL::ComPtr<ID2D1SvgElement> rootElem, elem;
+    D2D1_SIZE_F svgSize;
+    RwRaster* raster;
+    RwTexture* texture;
+    uint32_t level, numMipLevels, maxDim, mipW, mipH;
+    float scaleX, scaleY;
+    bool mipFailed;
+    std::string xmlContent;
+    std::vector<FilteredNodeInfo> filterInfos;
+    std::vector<FilteredNode> filteredNodes;
+    size_t k;
+
+    raster = nullptr;
+    texture = nullptr;
+    mipFailed = false;
+
+    if (!filePath || filePath[0] == '\0' || width == 0 || height == 0) {
+        return nullptr;
+    }
+
+    /* Read SVG file and process filter blur element IDs */
+    xmlContent = ReadFileToString(filePath);
+    if (xmlContent.empty()) return nullptr;
+
+    filterInfos = ProcessSvgFilters(xmlContent);
+
+    /* --- D3D11 WARP device --- */
+    featureLevels[0] = D3D_FEATURE_LEVEL_11_1;
+    featureLevels[1] = D3D_FEATURE_LEVEL_11_0;
+
+    hr = D3D11CreateDevice(
+        nullptr,
+        D3D_DRIVER_TYPE_WARP,
+        nullptr,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+        featureLevels,
+        2,
+        D3D11_SDK_VERSION,
+        &d3d11Device,
+        nullptr,
+        &d3d11Context
+    );
+    if (FAILED(hr)) return nullptr;
+
+    /* --- D2D factory + device + context --- */
+    hr = d3d11Device.As(&dxgiDevice);
+    if (FAILED(hr)) return nullptr;
+
+    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory3), nullptr, &d2dFactory);
+    if (FAILED(hr)) return nullptr;
+
+    hr = d2dFactory->CreateDevice(dxgiDevice.Get(), &d2dDevice);
+    if (FAILED(hr)) return nullptr;
+
+    hr = d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &d2dContext2);
+    if (FAILED(hr)) return nullptr;
+
+    hr = d2dContext2.As(&d2dContext);
+    if (FAILED(hr)) return nullptr;
+
+    d2dContext->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+
+    /* --- Create memory stream from processed XML string --- */
+    stream.Attach(SHCreateMemStream((const BYTE*)xmlContent.data(), (UINT)xmlContent.size()));
+    if (!stream) return nullptr;
+
+    svgSize.width = static_cast<float>(width);
+    svgSize.height = static_cast<float>(height);
+
+    hr = d2dContext->CreateSvgDocument(stream.Get(), svgSize, &svgDoc);
+    if (FAILED(hr)) return nullptr;
+
+    svgDoc->GetRoot(&rootElem);
+
+    /* Find all ID2D1SvgElement pointers for filtered nodes */
+    for (k = 0; k < filterInfos.size(); k++) {
+        elem.Reset();
+        svgDoc->FindElementById(filterInfos[k].elementId.c_str(), &elem);
+        if (elem) {
+            FilteredNode node;
+            node.element = elem;
+            node.stdDev = filterInfos[k].stdDev;
+            filteredNodes.push_back(node);
+        }
+    }
+
+    /* --- Calculate mip level count --- */
+    numMipLevels = 1;
+    maxDim = (width > height) ? width : height;
+    while (maxDim > 1) {
+        maxDim >>= 1;
+        numMipLevels++;
+    }
+
+    /* --- Create RW raster WITH mipmap chain --- */
+    raster = RwRasterCreate(width, height, 32, rwRASTERTYPETEXTURE | rwRASTERFORMAT8888 | rwRASTERFORMATMIPMAP);
+    if (!raster) return nullptr;
+
+    /* --- Re-rasterize SVG fresh at each mip level --- */
+    for (level = 0; level < numMipLevels; level++) {
+        mipW = width >> level;
+        if (mipW < 1) mipW = 1;
+        mipH = height >> level;
+        if (mipH < 1) mipH = 1;
+
+        scaleX = static_cast<float>(mipW) / static_cast<float>(width);
+        scaleY = static_cast<float>(mipH) / static_cast<float>(height);
+
+        if (!RenderSvgAtSize(d3d11Device.Get(), d3d11Context.Get(), d2dContext.Get(),
+                             svgDoc.Get(), rootElem.Get(), filteredNodes, mipW, mipH, scaleX, scaleY,
+                             raster, static_cast<RwUInt8>(level))) {
+            mipFailed = true;
+            break;
+        }
+    }
+
+    texture = RwTextureCreate(raster);
+    if (texture) {
+        RwTextureSetFilterMode(texture, mipFailed ? rwFILTERLINEAR : rwFILTERLINEARMIPLINEAR);
+    }
+
+    return texture;
+}
