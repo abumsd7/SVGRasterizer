@@ -1,0 +1,145 @@
+name: Build SVGRasterizer
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    tags:
+      - '*'
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Checkout Plugin-SDK
+      uses: actions/checkout@v6
+      with:
+        repository: 'DK22Pac/plugin-sdk'
+        path: 'plugin-sdk'
+        submodules: recursive
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v3
+
+    - name: Generate and Build Plugin-SDK Libraries
+      shell: cmd
+      run: |
+        cd plugin-sdk
+        set PLUGIN_SDK_DIR=%CD%
+        
+        echo ::group::Generate Plugin-SDK Solution
+        call "tools\generate\Visual Studio.bat"
+        echo ::groupEnd::
+        
+        echo ::group::Build SDK GTA III static lib
+        msbuild plugin.sln /property:Configuration=Release /property:Platform="Mixed Platforms" /target:plugin_iii /m /verbosity:minimal
+        echo ::groupEnd::
+        
+        echo ::group::Build SDK GTA VC static lib
+        msbuild plugin.sln /property:Configuration=Release /property:Platform="Mixed Platforms" /target:plugin_vc /m /verbosity:minimal
+        echo ::groupEnd::
+
+        echo ::group::Build SDK GTA SA static lib
+        msbuild plugin.sln /property:Configuration=Release /property:Platform="Mixed Platforms" /target:plugin_sa /m /verbosity:minimal
+        echo ::groupEnd::
+
+    - name: Set Environment Variables & Create Mock Folders
+      shell: powershell
+      run: |
+        # Create mock script folders so the post-build copy commands don't crash
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\mock_gta3\scripts"
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\mock_gtavc\scripts"
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\mock_gtasa\scripts"
+        
+        # Inject paths into GITHUB_ENV for global MSBuild reference
+        echo "PLUGIN_SDK_DIR=${{ github.workspace }}\plugin-sdk" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "GTA_III_DIR=${{ github.workspace }}\mock_gta3" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "GTA_VC_DIR=${{ github.workspace }}\mock_gtavc" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "GTA_SA_DIR=${{ github.workspace }}\mock_gtasa" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Build (SVGRasterizer GTA III)
+      continue-on-error: true
+      run: |
+        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA3" /p:Platform="Win32" /m /verbosity:minimal
+
+    - name: Build (SVGRasterizer Vice City)
+      continue-on-error: true
+      run: |
+        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA-VC" /p:Platform="Win32" /m /verbosity:minimal
+
+    - name: Build (SVGRasterizer San Andreas)
+      continue-on-error: true
+      run: |
+        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA-SA" /p:Platform="Win32" /m /verbosity:minimal
+
+    - name: Package Plugins into Individual Zips
+      if: always()
+      shell: powershell
+      run: |
+        New-Item -ItemType Directory -Force -Path "output/asi"
+        Get-ChildItem -Path "${{ github.workspace }}\mock_gta3\scripts", "${{ github.workspace }}\mock_gtavc\scripts", "${{ github.workspace }}\mock_gtasa\scripts" -Filter *.asi -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination "output/asi\" -Force
+        }
+        if (Test-Path "output/asi") {
+            Get-ChildItem -Path "output/asi" -Filter *.asi | ForEach-Object {
+                $zipName = "output/asi/$($_.BaseName).zip"
+                Write-Host "Archiving $($_.Name) into $zipName..."
+                Compress-Archive -Path $_.FullName -DestinationPath $zipName -Force
+            }
+        }
+
+    - name: Prepare Release Metadata
+      if: always()
+      shell: powershell
+      run: |
+        $projectName = "SVGRasterizer"
+        if ('${{ github.ref_type }}' -eq 'tag') {
+            $rawTag = '${{ github.ref_name }}'
+            $verNo = $rawTag -replace '^(ver|v)', ''
+            $tagId = "ver$verNo"
+            $name = "$projectName v$verNo"
+            $body = git log -1 --pretty=%B
+            $body = if ($body) { $body.Trim() } else { "Release $rawTag" }
+            $artifactName = "${projectName}_v$verNo"
+        } else {
+            $now = Get-Date
+            $ddmmyyyy_hhmmss = $now.ToString("ddMMyyyy_HHmmss")
+            $dateFormatted = $now.ToString("dd/MM/yyyy") + " at " + $now.ToString("HH:mm:ss")
+            $tagId = "build_$ddmmyyyy_hhmmss"
+            $name = "Build $ddmmyyyy_hhmmss"
+            $body = "Github Actions triggered build on $dateFormatted for manually triggered builds."
+            $artifactName = "${projectName}_$ddmmyyyy_hhmmss"
+        }
+        echo "RELEASE_TAG=$tagId" >> $env:GITHUB_ENV
+        echo "RELEASE_NAME=$name" >> $env:GITHUB_ENV
+        echo "RELEASE_BODY=$body" >> $env:GITHUB_ENV
+        echo "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_ENV
+
+    - name: Upload Finished ASI Plugins Artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARTIFACT_NAME }}
+        path: |
+          output/asi/*.zip
+
+    - name: Create GitHub Release
+      if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "output/asi/*.zip"
+        token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ env.RELEASE_TAG }}
+        name: ${{ env.RELEASE_NAME }}
+        body: ${{ env.RELEASE_BODY }}
+        allowUpdates: true
+        draft: false
+        prerelease: false
