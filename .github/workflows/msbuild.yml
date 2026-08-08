@@ -4,7 +4,10 @@ on:
   push:
     branches: [ "master", "main" ]
     tags:
-      - '*'
+      - 'v*'
+      - 'ver*'
+      - '*.*.*'
+      - '**'
   pull_request:
     branches: [ "master", "main" ]
   workflow_dispatch:
@@ -108,7 +111,7 @@ jobs:
         if ($refType -eq 'tag' -or $ref -like 'refs/tags/*') {
             $rawTag = if ($refName -and $refName -notlike 'refs/tags/*') { $refName } else { $ref -replace '^refs/tags/', '' }
             $verNo = $rawTag -replace '^(ver|v)', ''
-            $tagId = "ver$verNo"
+            $tagId = if ($rawTag -match '^v\d') { $rawTag } else { "v$verNo" }
             $name = "$projectName v$verNo"
             $tagMsg = git tag -l --format='%(contents)' $rawTag
             if (-not $tagMsg) { $tagMsg = git log -1 --pretty=%B }
