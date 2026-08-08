@@ -148,7 +148,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTA3;GTAGAME_NAME="3";GTAGAME_ABBR="3";GTAGAME_ABBRLOW="3";GTAGAME_PROTAGONISTNAME="Claude";GTAGAME_CITYNAME="Liberty City";PLUGIN_SGV_10EN;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\enums;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\enums;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -180,7 +180,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTAVC;GTAGAME_NAME="Vice City";GTAGAME_ABBR="VC";GTAGAME_ABBRLOW="vc";GTAGAME_PROTAGONISTNAME="Tommy";GTAGAME_CITYNAME="Vice City";PLUGIN_SGV_10EN;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_VC;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\enums;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories);$(PLUGIN_SDK_DIR)\shared\dxsdk</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_VC;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\enums;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -212,7 +212,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTASA;GTAGAME_NAME="San Andreas";GTAGAME_ABBR="SA";GTAGAME_ABBRLOW="sa";GTAGAME_PROTAGONISTNAME="CJ";GTAGAME_CITYNAME="San Andreas";PLUGIN_SGV_10US;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\enums;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;$(PLUGIN_SDK_DIR)\shared\bass;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\enums;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories);$(PLUGIN_SDK_DIR)\shared\bass</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -244,7 +244,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTA3;GTAGAME_NAME="3";GTAGAME_ABBR="3";GTAGAME_ABBRLOW="3";GTAGAME_PROTAGONISTNAME="Claude";GTAGAME_CITYNAME="Liberty City";PLUGIN_SGV_10EN;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\enums;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\enums;$(PLUGIN_SDK_DIR)\Plugin_III\game_III\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
@@ -270,7 +270,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTAVC;GTAGAME_NAME="Vice City";GTAGAME_ABBR="VC";GTAGAME_ABBRLOW="vc";GTAGAME_PROTAGONISTNAME="Tommy";GTAGAME_CITYNAME="Vice City";PLUGIN_SGV_10EN;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_VC;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\enums;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories);$(PLUGIN_SDK_DIR)\shared\dxsdk</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_VC;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\enums;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
@@ -296,7 +296,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTASA;GTAGAME_NAME="San Andreas";GTAGAME_ABBR="SA";GTAGAME_ABBRLOW="sa";GTAGAME_PROTAGONISTNAME="CJ";GTAGAME_CITYNAME="San Andreas";PLUGIN_SGV_10US;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\enums;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;$(PLUGIN_SDK_DIR)\shared\bass;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\enums;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9;%(AdditionalIncludeDirectories);$(PLUGIN_SDK_DIR)\shared\bass</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
@@ -319,9 +319,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Hooks.cpp" />
-    <ClCompile Include="src\SVGRasterizer.cpp">
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_VC;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\enums;$(PLUGIN_SDK_DIR)\Plugin_VC\game_vc\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;$(PLUGIN_SDK_DIR)\shared\rwd3d9</AdditionalIncludeDirectories>
-    </ClCompile>
+    <ClCompile Include="src\SVGRasterizer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\Hooks.h" />
