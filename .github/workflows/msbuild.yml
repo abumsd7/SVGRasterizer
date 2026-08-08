@@ -65,20 +65,20 @@ jobs:
         echo "GTA_VC_DIR=${{ github.workspace }}\mock_gtavc" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "GTA_SA_DIR=${{ github.workspace }}\mock_gtasa" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Build (SVGRasterizer GTA III)
+    - name: Build (SVGRasterizer San Andreas)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA3" /p:Platform="Win32" /m /verbosity:minimal
+        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-SA" /m /verbosity:minimal
 
     - name: Build (SVGRasterizer Vice City)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA-VC" /p:Platform="Win32" /m /verbosity:minimal
+        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-VC" /m /verbosity:minimal
 
-    - name: Build (SVGRasterizer San Andreas)
+    - name: Build (SVGRasterizer GTA III)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release|GTA-SA" /p:Platform="Win32" /m /verbosity:minimal
+        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA3" /m /verbosity:minimal
 
     - name: Package Plugins into Individual Zips
       if: always()
