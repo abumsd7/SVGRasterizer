@@ -106,8 +106,9 @@ jobs:
             $verNo = $rawTag -replace '^(ver|v)', ''
             $tagId = "ver$verNo"
             $name = "$projectName v$verNo"
-            $body = git log -1 --pretty=%B
-            $body = if ($body) { $body.Trim() } else { "Release $rawTag" }
+            $tagMsg = git tag -l --format='%(contents)' $rawTag
+            if (-not $tagMsg) { $tagMsg = git log -1 --pretty=%B }
+            $body = if ($tagMsg) { ($tagMsg | Out-String).Trim() } else { "Release $rawTag" }
             $artifactName = "${projectName}_v$verNo"
         } else {
             $now = Get-Date
