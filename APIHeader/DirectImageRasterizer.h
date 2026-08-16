@@ -31,6 +31,21 @@ public:
     typedef RwTexture* (*LoadSVGToRwTextureFn)(const char*, uint32_t, uint32_t, bool, uint32_t);
     typedef RwTexture* (*LoadPNGToRwTextureFn)(const char*, uint32_t, uint32_t, bool, uint32_t);
 
+    static bool IsLoaded() {
+        return GetModule() != nullptr;
+    }
+
+    static void EnsureLoaded() {
+        if (!IsLoaded()) {
+            MessageBoxA(nullptr,
+                "DirectImageRasterizer plugin is required but could not be loaded.\n\n"
+                "Please ensure 'DirectImageRasterizer.VC.asi' (or 'DirectImageRasterizer.asi') is installed in your game's scripts folder.",
+                "Missing Dependency Error",
+                MB_ICONERROR | MB_OK);
+            ExitProcess(1);
+        }
+    }
+
     static RwTexture* LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height, bool generateMipmaps = true, uint32_t mipLevels = 0) {
         static LoadSVGToRwTextureFn fn = nullptr;
         if (!fn) {
@@ -42,6 +57,7 @@ public:
         if (fn) {
             return fn(filePath, width, height, generateMipmaps, mipLevels);
         }
+        EnsureLoaded();
         return nullptr;
     }
 
@@ -56,6 +72,7 @@ public:
         if (fn) {
             return fn(filePath, width, height, generateMipmaps, mipLevels);
         }
+        EnsureLoaded();
         return nullptr;
     }
 };
