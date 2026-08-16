@@ -30,6 +30,8 @@ private:
 public:
     typedef RwTexture* (*LoadSVGToRwTextureFn)(const char*, uint32_t, uint32_t, bool, uint32_t);
     typedef RwTexture* (*LoadPNGToRwTextureFn)(const char*, uint32_t, uint32_t, bool, uint32_t);
+    typedef RwTexture* (*FindSVGinFolderPathFn)(const char*, const char*, uint32_t, uint32_t, bool, uint32_t);
+    typedef RwTexture* (*FindPNGinFolderPathFn)(const char*, const char*, uint32_t, uint32_t, bool, uint32_t);
 
     static bool IsLoaded() {
         return GetModule() != nullptr;
@@ -46,7 +48,7 @@ public:
         }
     }
 
-    static RwTexture* LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height, bool generateMipmaps = true, uint32_t mipLevels = 0) {
+    static RwTexture* LoadSVGToRwTexture(const char* filePath, uint32_t width = 0, uint32_t height = 0, bool generateMipmaps = true, uint32_t mipLevels = 0) {
         static LoadSVGToRwTextureFn fn = nullptr;
         if (!fn) {
             HMODULE hMod = GetModule();
@@ -71,6 +73,36 @@ public:
         }
         if (fn) {
             return fn(filePath, width, height, generateMipmaps, mipLevels);
+        }
+        EnsureLoaded();
+        return nullptr;
+    }
+
+    static RwTexture* FindSVGinFolderPath(const char* folderPath, const char* fileName, uint32_t width = 0, uint32_t height = 0, bool generateMipmaps = true, uint32_t mipLevels = 0) {
+        static FindSVGinFolderPathFn fn = nullptr;
+        if (!fn) {
+            HMODULE hMod = GetModule();
+            if (hMod) {
+                fn = (FindSVGinFolderPathFn)GetProcAddress(hMod, "FindSVGinFolderPath");
+            }
+        }
+        if (fn) {
+            return fn(folderPath, fileName, width, height, generateMipmaps, mipLevels);
+        }
+        EnsureLoaded();
+        return nullptr;
+    }
+
+    static RwTexture* FindPNGinFolderPath(const char* folderPath, const char* fileName, uint32_t width = 0, uint32_t height = 0, bool generateMipmaps = true, uint32_t mipLevels = 0) {
+        static FindPNGinFolderPathFn fn = nullptr;
+        if (!fn) {
+            HMODULE hMod = GetModule();
+            if (hMod) {
+                fn = (FindPNGinFolderPathFn)GetProcAddress(hMod, "FindPNGinFolderPath");
+            }
+        }
+        if (fn) {
+            return fn(folderPath, fileName, width, height, generateMipmaps, mipLevels);
         }
         EnsureLoaded();
         return nullptr;

@@ -528,6 +528,127 @@ static void PreprocessPaintOrder(std::string& xmlContent) {
     xmlContent = result;
 }
 
+static float ParseSvgLength(const std::string& str) {
+    size_t i;
+    float val;
+    std::string unit;
+
+    i = 0;
+    val = 0.0f;
+
+    if (str.empty()) return 0.0f;
+
+    while (i < str.size() && (str[i] == ' ' || str[i] == '\t' || str[i] == '\r' || str[i] == '\n')) {
+        i++;
+    }
+
+    val = static_cast<float>(atof(str.c_str() + i));
+    if (val <= 0.0f) return 0.0f;
+
+    while (i < str.size() && ((str[i] >= '0' && str[i] <= '9') || str[i] == '.' || str[i] == '-' || str[i] == '+')) {
+        i++;
+    }
+    while (i < str.size() && str[i] != ' ' && str[i] != ';' && str[i] != '"' && str[i] != '\'') {
+        unit += str[i++];
+    }
+
+    if (unit == "mm") {
+        return val * 3.779527559f;
+    } else if (unit == "cm") {
+        return val * 37.79527559f;
+    } else if (unit == "in") {
+        return val * 96.0f;
+    } else if (unit == "pt") {
+        return val * 1.333333333f;
+    } else if (unit == "pc") {
+        return val * 16.0f;
+    }
+
+    return val;
+}
+
+static void GetSvgDimensions(const std::string& xmlContent, uint32_t& outWidth, uint32_t& outHeight) {
+    size_t svgTagPos, tagEnd, widthPos, heightPos, vbPos, quoteStart, quoteEnd, cIdx;
+    std::string svgTag, widthStr, heightStr, vbStr;
+    float parsedW, parsedH, vbMinX, vbMinY, vbW, vbH;
+    int scanned;
+
+    outWidth = 0;
+    outHeight = 0;
+    parsedW = 0.0f;
+    parsedH = 0.0f;
+    vbMinX = 0.0f;
+    vbMinY = 0.0f;
+    vbW = 0.0f;
+    vbH = 0.0f;
+    scanned = 0;
+
+    svgTagPos = xmlContent.find("<svg");
+    if (svgTagPos == std::string::npos) return;
+
+    tagEnd = xmlContent.find('>', svgTagPos);
+    if (tagEnd == std::string::npos) return;
+
+    svgTag = xmlContent.substr(svgTagPos, tagEnd - svgTagPos + 1);
+
+    widthPos = svgTag.find("width=\"");
+    if (widthPos != std::string::npos) {
+        quoteStart = widthPos + 7;
+        quoteEnd = svgTag.find('"', quoteStart);
+        if (quoteEnd != std::string::npos) {
+            widthStr = svgTag.substr(quoteStart, quoteEnd - quoteStart);
+            parsedW = ParseSvgLength(widthStr);
+        }
+    }
+
+    heightPos = svgTag.find("height=\"");
+    if (heightPos != std::string::npos) {
+        quoteStart = heightPos + 8;
+        quoteEnd = svgTag.find('"', quoteStart);
+        if (quoteEnd != std::string::npos) {
+            heightStr = svgTag.substr(quoteStart, quoteEnd - quoteStart);
+            parsedH = ParseSvgLength(heightStr);
+        }
+    }
+
+    vbPos = svgTag.find("viewBox=\"");
+    if (vbPos != std::string::npos) {
+        quoteStart = vbPos + 9;
+        quoteEnd = svgTag.find('"', quoteStart);
+        if (quoteEnd != std::string::npos) {
+            vbStr = svgTag.substr(quoteStart, quoteEnd - quoteStart);
+            for (cIdx = 0; cIdx < vbStr.size(); cIdx++) {
+                if (vbStr[cIdx] == ',') vbStr[cIdx] = ' ';
+            }
+            scanned = sscanf_s(vbStr.c_str(), "%f %f %f %f", &vbMinX, &vbMinY, &vbW, &vbH);
+            if (scanned == 4 && vbW > 0.0f && vbH > 0.0f) {
+                if (parsedW <= 0.0f) parsedW = vbW;
+                if (parsedH <= 0.0f) parsedH = vbH;
+            }
+        }
+    }
+
+    if (parsedW > 0.0f && parsedH <= 0.0f) {
+        if (vbW > 0.0f && vbH > 0.0f) {
+            parsedH = parsedW * (vbH / vbW);
+        } else {
+            parsedH = parsedW;
+        }
+    } else if (parsedH > 0.0f && parsedW <= 0.0f) {
+        if (vbW > 0.0f && vbH > 0.0f) {
+            parsedW = parsedH * (vbW / vbH);
+        } else {
+            parsedW = parsedH;
+        }
+    }
+
+    if (parsedW <= 0.0f) parsedW = 512.0f;
+    if (parsedH <= 0.0f) parsedH = 512.0f;
+
+    outWidth = static_cast<uint32_t>(ceilf(parsedW));
+    outHeight = static_cast<uint32_t>(ceilf(parsedH));
+}
+
 RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height, bool generateMipmaps, uint32_t mipLevels) {
     HRESULT hr;
     D3D_FEATURE_LEVEL featureLevels[2];
@@ -544,7 +665,7 @@ RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint3
     D2D1_SIZE_F svgSize;
     RwRaster* raster;
     RwTexture* texture;
-    uint32_t level, numMipLevels, maxDim, maxLevels, mipW, mipH;
+    uint32_t targetW, targetH, autoW, autoH, level, numMipLevels, maxDim, maxLevels, mipW, mipH;
     float scaleX, scaleY;
     bool mipFailed;
     RwInt32 rasterFlags;
@@ -555,14 +676,39 @@ RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint3
 
     raster = nullptr;
     texture = nullptr;
+    targetW = 0;
+    targetH = 0;
+    autoW = 0;
+    autoH = 0;
+    level = 0;
+    numMipLevels = 1;
+    maxDim = 0;
+    maxLevels = 1;
+    mipW = 0;
+    mipH = 0;
+    scaleX = 1.0f;
+    scaleY = 1.0f;
+    rasterFlags = 0;
     mipFailed = false;
 
-    if (!filePath || filePath[0] == '\0' || width == 0 || height == 0) {
+    if (!filePath || filePath[0] == '\0') {
         return nullptr;
     }
 
     xmlContent = ReadFileToString(filePath);
     if (xmlContent.empty()) return nullptr;
+
+    targetW = width;
+    targetH = height;
+    if (targetW == 0 || targetH == 0) {
+        GetSvgDimensions(xmlContent, autoW, autoH);
+        if (targetW == 0) targetW = autoW;
+        if (targetH == 0) targetH = autoH;
+    }
+
+    if (targetW == 0 || targetH == 0) {
+        return nullptr;
+    }
 
     PreprocessPaintOrder(xmlContent);
 
@@ -608,8 +754,8 @@ RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint3
     stream.Attach(SHCreateMemStream((const BYTE*)xmlContent.data(), (UINT)xmlContent.size()));
     if (!stream) return nullptr;
 
-    svgSize.width = static_cast<float>(width);
-    svgSize.height = static_cast<float>(height);
+    svgSize.width = static_cast<float>(targetW);
+    svgSize.height = static_cast<float>(targetH);
 
     hr = d2dContext->CreateSvgDocument(stream.Get(), svgSize, &svgDoc);
     if (FAILED(hr)) return nullptr;
@@ -634,7 +780,7 @@ RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint3
         rasterFlags = rwRASTERTYPETEXTURE | rwRASTERFORMAT8888;
     } else {
         maxLevels = 1;
-        maxDim = (width > height) ? width : height;
+        maxDim = (targetW > targetH) ? targetW : targetH;
         while (maxDim > 1) {
             maxDim >>= 1;
             maxLevels++;
@@ -645,18 +791,18 @@ RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint3
     }
 
     /* --- Create RW raster --- */
-    raster = RwRasterCreate(width, height, 32, rasterFlags);
+    raster = RwRasterCreate(targetW, targetH, 32, rasterFlags);
     if (!raster) return nullptr;
 
     /* --- Re-rasterize SVG fresh at each mip level --- */
     for (level = 0; level < numMipLevels; level++) {
-        mipW = width >> level;
+        mipW = targetW >> level;
         if (mipW < 1) mipW = 1;
-        mipH = height >> level;
+        mipH = targetH >> level;
         if (mipH < 1) mipH = 1;
 
-        scaleX = static_cast<float>(mipW) / static_cast<float>(width);
-        scaleY = static_cast<float>(mipH) / static_cast<float>(height);
+        scaleX = static_cast<float>(mipW) / static_cast<float>(targetW);
+        scaleY = static_cast<float>(mipH) / static_cast<float>(targetH);
 
         if (!RenderSvgAtSize(d3d11Device.Get(), d3d11Context.Get(), d2dContext.Get(),
                              svgDoc.Get(), rootElem.Get(), filteredNodes, mipW, mipH, scaleX, scaleY,
@@ -861,5 +1007,50 @@ RwTexture* DirectImageRasterizer::LoadPNGToRwTexture(const char* filePath, uint3
 
     return texture;
 }
+
+RwTexture* DirectImageRasterizer::FindSVGinFolderPath(const char* folderPath, const char* fileName, uint32_t width, uint32_t height, bool generateMipmaps, uint32_t mipLevels) {
+    std::string fullPath;
+    size_t len;
+
+    if (!folderPath || !fileName || folderPath[0] == '\0' || fileName[0] == '\0') {
+        return nullptr;
+    }
+
+    fullPath = folderPath;
+    if (!fullPath.empty() && fullPath.back() != '\\' && fullPath.back() != '/') {
+        fullPath += '\\';
+    }
+    fullPath += fileName;
+
+    len = fullPath.size();
+    if (len < 4 || (_stricmp(fullPath.c_str() + len - 4, ".svg") != 0)) {
+        fullPath += ".svg";
+    }
+
+    return LoadSVGToRwTexture(fullPath.c_str(), width, height, generateMipmaps, mipLevels);
+}
+
+RwTexture* DirectImageRasterizer::FindPNGinFolderPath(const char* folderPath, const char* fileName, uint32_t width, uint32_t height, bool generateMipmaps, uint32_t mipLevels) {
+    std::string fullPath;
+    size_t len;
+
+    if (!folderPath || !fileName || folderPath[0] == '\0' || fileName[0] == '\0') {
+        return nullptr;
+    }
+
+    fullPath = folderPath;
+    if (!fullPath.empty() && fullPath.back() != '\\' && fullPath.back() != '/') {
+        fullPath += '\\';
+    }
+    fullPath += fileName;
+
+    len = fullPath.size();
+    if (len < 4 || (_stricmp(fullPath.c_str() + len - 4, ".png") != 0)) {
+        fullPath += ".png";
+    }
+
+    return LoadPNGToRwTexture(fullPath.c_str(), width, height, generateMipmaps, mipLevels);
+}
+
 
 
