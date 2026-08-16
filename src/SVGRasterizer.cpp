@@ -19,6 +19,7 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <unordered_set>
 
 #include "../includes/SVGRasterizer.h"
 
@@ -389,6 +390,141 @@ static bool RenderSvgAtSize(
     return (pixels != nullptr);
 }
 
+static bool ReplaceStyleProp(std::string& t, const std::string& prop, const std::string& newVal) {
+    size_t stylePos = t.find("style=\"");
+    if (stylePos != std::string::npos) {
+        size_t styleEnd = t.find("\"", stylePos + 7);
+        if (styleEnd != std::string::npos) {
+            std::string styleContent = t.substr(stylePos + 7, styleEnd - stylePos - 7);
+            size_t propPos = styleContent.find(prop + ":");
+            if (propPos != std::string::npos) {
+                size_t propEnd = styleContent.find(";", propPos);
+                if (propEnd == std::string::npos) propEnd = styleContent.size();
+                styleContent.replace(propPos, propEnd - propPos, prop + ":" + newVal);
+                t.replace(stylePos + 7, styleEnd - stylePos - 7, styleContent);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static bool ReplaceAttr(std::string& t, const std::string& attr, const std::string& newVal) {
+    size_t attrPos = t.find(" " + attr + "=\"");
+    if (attrPos != std::string::npos) {
+        size_t attrEnd = t.find("\"", attrPos + attr.size() + 3);
+        if (attrEnd != std::string::npos) {
+            t.replace(attrPos + attr.size() + 3, attrEnd - attrPos - attr.size() - 3, newVal);
+            return true;
+        }
+    }
+    return false;
+}
+
+static void PreprocessPaintOrder(std::string& xmlContent) {
+    std::string result;
+    size_t pos, nextTag, tagEnd, valStart, valEnd, strokeIdx, fillIdx, insertPos;
+    bool isShape, hasPaintOrder, strokeTagModified, strokeAttrModified, fillTagModified;
+    std::string tag, poVal, strokeTag, fillTag;
+    std::vector<std::string> shapeTypes = { "<path", "<rect", "<circle", "<ellipse", "<line", "<polygon", "<polyline" };
+
+    result.reserve(xmlContent.size() + 4096);
+    pos = 0;
+    while (pos < xmlContent.size()) {
+        nextTag = xmlContent.find('<', pos);
+        if (nextTag == std::string::npos) {
+            result.append(xmlContent.substr(pos));
+            break;
+        }
+        
+        result.append(xmlContent.substr(pos, nextTag - pos));
+        
+        tagEnd = xmlContent.find('>', nextTag);
+        if (tagEnd == std::string::npos) {
+            result.append(xmlContent.substr(nextTag));
+            break;
+        }
+        
+        tag = xmlContent.substr(nextTag, tagEnd - nextTag + 1);
+        pos = tagEnd + 1;
+        
+        isShape = false;
+        for (const auto& type : shapeTypes) {
+            if (tag.compare(0, type.size(), type) == 0 && (tag.size() > type.size())) {
+                char nextChar = tag[type.size()];
+                if (nextChar == ' ' || nextChar == '\n' || nextChar == '\r' || nextChar == '\t' || nextChar == '/' || nextChar == '>') {
+                    isShape = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!isShape) {
+            result.append(tag);
+            continue;
+        }
+        
+        hasPaintOrder = false;
+        size_t poPos = tag.find("paint-order");
+        if (poPos != std::string::npos) {
+            valStart = tag.find_first_of("=:", poPos);
+            if (valStart != std::string::npos) {
+                size_t searchStart = valStart + 1;
+                while (searchStart < tag.size() && (tag[searchStart] == ' ' || tag[searchStart] == '"' || tag[searchStart] == '\'')) {
+                    searchStart++;
+                }
+                valEnd = tag.find_first_of("\";>", searchStart);
+                if (valEnd != std::string::npos) {
+                    poVal = tag.substr(searchStart, valEnd - searchStart);
+                    strokeIdx = poVal.find("stroke");
+                    fillIdx = poVal.find("fill");
+                    if (strokeIdx != std::string::npos && fillIdx != std::string::npos && strokeIdx < fillIdx) {
+                        hasPaintOrder = true;
+                    }
+                }
+            }
+        }
+        
+        if (!hasPaintOrder) {
+            result.append(tag);
+            continue;
+        }
+        
+        strokeTag = tag;
+        fillTag = tag;
+        
+        strokeTagModified = ReplaceStyleProp(strokeTag, "fill", "none");
+        if (!strokeTagModified) {
+            strokeAttrModified = ReplaceAttr(strokeTag, "fill", "none");
+            if (!strokeAttrModified) {
+                insertPos = strokeTag.find_first_of(" />");
+                if (insertPos != std::string::npos) {
+                    strokeTag.insert(insertPos, " fill=\"none\"");
+                }
+            }
+        }
+        
+        // Append "_stroke" to ID in strokeTag to avoid duplicate IDs in SVG document
+        size_t idPos = strokeTag.find("id=\"");
+        if (idPos != std::string::npos) {
+            size_t idEnd = strokeTag.find("\"", idPos + 4);
+            if (idEnd != std::string::npos) {
+                std::string originalId = strokeTag.substr(idPos + 4, idEnd - idPos - 4);
+                strokeTag.replace(idPos + 4, idEnd - idPos - 4, originalId + "_stroke");
+            }
+        }
+        
+        fillTagModified = ReplaceStyleProp(fillTag, "stroke", "none");
+        if (!fillTagModified) {
+            ReplaceAttr(fillTag, "stroke", "none");
+        }
+        
+        result.append(strokeTag);
+        result.append(fillTag);
+    }
+    xmlContent = result;
+}
+
 RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height) {
     HRESULT hr;
     D3D_FEATURE_LEVEL featureLevels[2];
@@ -421,9 +557,10 @@ RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t widt
         return nullptr;
     }
 
-    /* Read SVG file and process filter blur element IDs */
     xmlContent = ReadFileToString(filePath);
     if (xmlContent.empty()) return nullptr;
+
+    PreprocessPaintOrder(xmlContent);
 
     filterInfos = ProcessSvgFilters(xmlContent);
 
