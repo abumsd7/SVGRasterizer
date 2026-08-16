@@ -30,7 +30,7 @@
     <ProjectGuid>{28A6EA06-3782-4158-864A-645852426146}</ProjectGuid>
     <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>SVGRasterizer</RootNamespace>
+    <RootNamespace>DirectImageRasterizer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -100,7 +100,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_III_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA3\Release\</IntDir>
-    <TargetName>SVGRasterizer.III</TargetName>
+    <TargetName>DirectImageRasterizer.III</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release GTA-VC|Win32'">
@@ -108,7 +108,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_VC_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA-VC\Release\</IntDir>
-    <TargetName>SVGRasterizer.VC</TargetName>
+    <TargetName>DirectImageRasterizer.VC</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release GTA-SA|Win32'">
@@ -116,7 +116,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_SA_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA-SA\Release\</IntDir>
-    <TargetName>SVGRasterizer.SA</TargetName>
+    <TargetName>DirectImageRasterizer.SA</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug GTA3|Win32'">
@@ -124,7 +124,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_III_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA3\Debug\</IntDir>
-    <TargetName>SVGRasterizer.III</TargetName>
+    <TargetName>DirectImageRasterizer.III</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug GTA-VC|Win32'">
@@ -132,7 +132,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_VC_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA-VC\Debug\</IntDir>
-    <TargetName>SVGRasterizer.VC</TargetName>
+    <TargetName>DirectImageRasterizer.VC</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug GTA-SA|Win32'">
@@ -140,7 +140,7 @@
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <OutDir>$(GTA_SA_DIR)\scripts\\</OutDir>
     <IntDir>$(ProjectDir)obj\GTA-SA\Debug\</IntDir>
-    <TargetName>SVGRasterizer.SA</TargetName>
+    <TargetName>DirectImageRasterizer.SA</TargetName>
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release GTA3|Win32'">
@@ -169,7 +169,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalDependencies>Plugin_III.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA3\Release\SVGRasterizer.III.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA3\Release\DirectImageRasterizer.III.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_III_DIR ( taskkill /IM gta3.exe /F /FI "STATUS eq RUNNING" )</Command>
@@ -201,7 +201,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalDependencies>plugin_vc.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;d2d1.lib;d3d11.lib;dxgi.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA-VC\Release\SVGRasterizer.VC.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA-VC\Release\DirectImageRasterizer.VC.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_VC_DIR ( taskkill /IM gta-vc.exe /F /FI "STATUS eq RUNNING" 2&gt;nul &amp; set ERRORLEVEL=0 )</Command>
@@ -233,7 +233,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalDependencies>plugin.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;bass.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;$(PLUGIN_SDK_DIR)\shared\bass;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA-SA\Release\SVGRasterizer.SA.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA-SA\Release\DirectImageRasterizer.SA.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_SA_DIR ( taskkill /IM gta_sa.exe /F /FI "STATUS eq RUNNING" 2&gt;nul &amp; set ERRORLEVEL=0 )</Command>
@@ -259,7 +259,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>Plugin_III_d.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA3\Debug\SVGRasterizer.III.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA3\Debug\DirectImageRasterizer.III.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_III_DIR ( taskkill /IM gta3.exe /F /FI "STATUS eq RUNNING" )</Command>
@@ -285,7 +285,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>Plugin_VC_d.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA-VC\Debug\SVGRasterizer.VC.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA-VC\Debug\DirectImageRasterizer.VC.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_VC_DIR ( taskkill /IM gta-vc.exe /F /FI "STATUS eq RUNNING" 2&gt;nul &amp; set ERRORLEVEL=0 )</Command>
@@ -311,7 +311,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>plugin_d.lib;d3d9.lib;d3dx9.lib;rwd3d9.lib;dinput8.lib;dxguid.lib;bass.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(PLUGIN_SDK_DIR)\output\lib;$(PLUGIN_SDK_DIR)\shared\rwd3d9;$(PLUGIN_SDK_DIR)\shared\dxsdk;$(PLUGIN_SDK_DIR)\shared\bass;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ImportLibrary>bin\GTA-SA\Debug\SVGRasterizer.SA.lib</ImportLibrary>
+      <ImportLibrary>bin\GTA-SA\Debug\DirectImageRasterizer.SA.lib</ImportLibrary>
     </Link>
     <PreBuildEvent>
       <Command>if defined GTA_SA_DIR ( taskkill /IM gta_sa.exe /F /FI "STATUS eq RUNNING" 2&gt;nul &amp; set ERRORLEVEL=0 )</Command>
@@ -319,11 +319,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Hooks.cpp" />
-    <ClCompile Include="src\SVGRasterizer.cpp" />
+    <ClCompile Include="src\DirectImageRasterizer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\Hooks.h" />
-    <ClInclude Include="includes\SVGRasterizer.h" />
+    <ClInclude Include="includes\DirectImageRasterizer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />

@@ -21,12 +21,15 @@
 #include <algorithm>
 #include <unordered_set>
 
-#include "../includes/SVGRasterizer.h"
+#include <wincodec.h>
+
+#include "../includes/DirectImageRasterizer.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "windowscodecs.lib")
 
 struct FilteredNodeInfo {
     std::wstring elementId;
@@ -525,7 +528,7 @@ static void PreprocessPaintOrder(std::string& xmlContent) {
     xmlContent = result;
 }
 
-RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height) {
+RwTexture* DirectImageRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t width, uint32_t height, bool generateMipmaps, uint32_t mipLevels) {
     HRESULT hr;
     D3D_FEATURE_LEVEL featureLevels[2];
     Microsoft::WRL::ComPtr<ID3D11Device> d3d11Device;
@@ -541,9 +544,10 @@ RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t widt
     D2D1_SIZE_F svgSize;
     RwRaster* raster;
     RwTexture* texture;
-    uint32_t level, numMipLevels, maxDim, mipW, mipH;
+    uint32_t level, numMipLevels, maxDim, maxLevels, mipW, mipH;
     float scaleX, scaleY;
     bool mipFailed;
+    RwInt32 rasterFlags;
     std::string xmlContent;
     std::vector<FilteredNodeInfo> filterInfos;
     std::vector<FilteredNode> filteredNodes;
@@ -625,15 +629,23 @@ RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t widt
     }
 
     /* --- Calculate mip level count --- */
-    numMipLevels = 1;
-    maxDim = (width > height) ? width : height;
-    while (maxDim > 1) {
-        maxDim >>= 1;
-        numMipLevels++;
+    if (!generateMipmaps) {
+        numMipLevels = 1;
+        rasterFlags = rwRASTERTYPETEXTURE | rwRASTERFORMAT8888;
+    } else {
+        maxLevels = 1;
+        maxDim = (width > height) ? width : height;
+        while (maxDim > 1) {
+            maxDim >>= 1;
+            maxLevels++;
+        }
+        numMipLevels = (mipLevels == 0 || mipLevels > maxLevels) ? maxLevels : mipLevels;
+        rasterFlags = (numMipLevels > 1) ? (rwRASTERTYPETEXTURE | rwRASTERFORMAT8888 | rwRASTERFORMATMIPMAP)
+                                         : (rwRASTERTYPETEXTURE | rwRASTERFORMAT8888);
     }
 
-    /* --- Create RW raster WITH mipmap chain --- */
-    raster = RwRasterCreate(width, height, 32, rwRASTERTYPETEXTURE | rwRASTERFORMAT8888 | rwRASTERFORMATMIPMAP);
+    /* --- Create RW raster --- */
+    raster = RwRasterCreate(width, height, 32, rasterFlags);
     if (!raster) return nullptr;
 
     /* --- Re-rasterize SVG fresh at each mip level --- */
@@ -656,8 +668,198 @@ RwTexture* SVGRasterizer::LoadSVGToRwTexture(const char* filePath, uint32_t widt
 
     texture = RwTextureCreate(raster);
     if (texture) {
-        RwTextureSetFilterMode(texture, mipFailed ? rwFILTERLINEAR : rwFILTERLINEARMIPLINEAR);
+        RwTextureSetFilterMode(texture, (mipFailed || numMipLevels <= 1) ? rwFILTERLINEAR : rwFILTERLINEARMIPLINEAR);
     }
 
     return texture;
 }
+
+static IWICImagingFactory* GetWICFactory() {
+    static IWICImagingFactory* pFactory = nullptr;
+    HRESULT hr;
+
+    if (!pFactory) {
+        CoInitialize(nullptr);
+        hr = CoCreateInstance(
+            CLSID_WICImagingFactory,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(&pFactory)
+        );
+        if (FAILED(hr)) {
+            pFactory = nullptr;
+        }
+    }
+    return pFactory;
+}
+
+RwTexture* DirectImageRasterizer::LoadPNGToRwTexture(const char* filePath, uint32_t width, uint32_t height, bool generateMipmaps, uint32_t mipLevels) {
+    HRESULT hr;
+    IWICImagingFactory* factory;
+    Microsoft::WRL::ComPtr<IWICBitmapDecoder> decoder;
+    Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> frame;
+    Microsoft::WRL::ComPtr<IWICFormatConverter> converter;
+    Microsoft::WRL::ComPtr<IWICBitmapScaler> scaler;
+    IWICBitmapSource* currentSource;
+    RwRaster* raster;
+    RwTexture* texture;
+    RwUInt8 *pixels, *dstRow;
+    RwInt32 dstStride, rasterFlags;
+    UINT origW, origH;
+    uint32_t targetW, targetH, numMipLevels, maxDim, maxLevels, level, mipW, mipH, row;
+    bool mipFailed;
+    wchar_t wFilePath[MAX_PATH];
+    WICRect rect;
+
+    factory = nullptr;
+    currentSource = nullptr;
+    raster = nullptr;
+    texture = nullptr;
+    pixels = nullptr;
+    dstRow = nullptr;
+    origW = 0;
+    origH = 0;
+    targetW = 0;
+    targetH = 0;
+    numMipLevels = 1;
+    maxDim = 0;
+    maxLevels = 1;
+    level = 0;
+    mipW = 0;
+    mipH = 0;
+    row = 0;
+    dstStride = 0;
+    rasterFlags = 0;
+    mipFailed = false;
+
+    if (!filePath || filePath[0] == '\0') {
+        return nullptr;
+    }
+
+    if (MultiByteToWideChar(CP_UTF8, 0, filePath, -1, wFilePath, MAX_PATH) == 0) {
+        if (MultiByteToWideChar(CP_ACP, 0, filePath, -1, wFilePath, MAX_PATH) == 0) {
+            return nullptr;
+        }
+    }
+
+    factory = GetWICFactory();
+    if (!factory) return nullptr;
+
+    hr = factory->CreateDecoderFromFilename(
+        wFilePath,
+        nullptr,
+        GENERIC_READ,
+        WICDecodeMetadataCacheOnDemand,
+        &decoder
+    );
+    if (FAILED(hr)) return nullptr;
+
+    hr = decoder->GetFrame(0, &frame);
+    if (FAILED(hr)) return nullptr;
+
+    hr = frame->GetSize(&origW, &origH);
+    if (FAILED(hr) || origW == 0 || origH == 0) return nullptr;
+
+    targetW = (width > 0) ? width : origW;
+    targetH = (height > 0) ? height : origH;
+
+    hr = factory->CreateFormatConverter(&converter);
+    if (FAILED(hr)) return nullptr;
+
+    hr = converter->Initialize(
+        frame.Get(),
+        GUID_WICPixelFormat32bppBGRA,
+        WICBitmapDitherTypeNone,
+        nullptr,
+        0.0f,
+        WICBitmapPaletteTypeCustom
+    );
+    if (FAILED(hr)) return nullptr;
+
+    /* Calculate mip level count */
+    if (!generateMipmaps) {
+        numMipLevels = 1;
+        rasterFlags = rwRASTERTYPETEXTURE | rwRASTERFORMAT8888;
+    } else {
+        maxLevels = 1;
+        maxDim = (targetW > targetH) ? targetW : targetH;
+        while (maxDim > 1) {
+            maxDim >>= 1;
+            maxLevels++;
+        }
+        numMipLevels = (mipLevels == 0 || mipLevels > maxLevels) ? maxLevels : mipLevels;
+        rasterFlags = (numMipLevels > 1) ? (rwRASTERTYPETEXTURE | rwRASTERFORMAT8888 | rwRASTERFORMATMIPMAP)
+                                         : (rwRASTERTYPETEXTURE | rwRASTERFORMAT8888);
+    }
+
+    raster = RwRasterCreate(targetW, targetH, 32, rasterFlags);
+    if (!raster) return nullptr;
+
+    for (level = 0; level < numMipLevels; level++) {
+        mipW = targetW >> level;
+        if (mipW < 1) mipW = 1;
+        mipH = targetH >> level;
+        if (mipH < 1) mipH = 1;
+
+        if (level == 0 && targetW == origW && targetH == origH) {
+            currentSource = converter.Get();
+        } else {
+            scaler.Reset();
+            hr = factory->CreateBitmapScaler(&scaler);
+            if (FAILED(hr)) {
+                mipFailed = true;
+                break;
+            }
+
+            hr = scaler->Initialize(converter.Get(), mipW, mipH, WICBitmapInterpolationModeFant);
+            if (FAILED(hr)) {
+                mipFailed = true;
+                break;
+            }
+            currentSource = scaler.Get();
+        }
+
+        pixels = RwRasterLock(raster, static_cast<RwUInt8>(level), rwRASTERLOCKWRITE);
+        if (!pixels) {
+            mipFailed = true;
+            break;
+        }
+
+        dstStride = raster->stride;
+        if (dstStride == static_cast<RwInt32>(mipW * 4)) {
+            rect.X = 0;
+            rect.Y = 0;
+            rect.Width = mipW;
+            rect.Height = mipH;
+            hr = currentSource->CopyPixels(&rect, dstStride, dstStride * mipH, pixels);
+            if (FAILED(hr)) {
+                mipFailed = true;
+            }
+        } else {
+            for (row = 0; row < mipH; row++) {
+                rect.X = 0;
+                rect.Y = row;
+                rect.Width = mipW;
+                rect.Height = 1;
+                dstRow = pixels + row * dstStride;
+                hr = currentSource->CopyPixels(&rect, mipW * 4, mipW * 4, dstRow);
+                if (FAILED(hr)) {
+                    mipFailed = true;
+                    break;
+                }
+            }
+        }
+
+        RwRasterUnlock(raster);
+        if (mipFailed) break;
+    }
+
+    texture = RwTextureCreate(raster);
+    if (texture) {
+        RwTextureSetFilterMode(texture, (mipFailed || numMipLevels <= 1) ? rwFILTERLINEAR : rwFILTERLINEARMIPLINEAR);
+    }
+
+    return texture;
+}
+
+

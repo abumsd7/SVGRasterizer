@@ -1,7 +1,7 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SVGRasterizer", "SVGRasterizer.vcxproj", "{28A6EA06-3782-4158-864A-645852426146}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DirectImageRasterizer", "DirectImageRasterizer.vcxproj", "{28A6EA06-3782-4158-864A-645852426146}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
