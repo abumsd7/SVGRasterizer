@@ -1,4 +1,4 @@
-name: Build SVGRasterizer
+name: Build DirectImageRasterizer
 
 on:
   push:
@@ -68,20 +68,20 @@ jobs:
         echo "GTA_VC_DIR=${{ github.workspace }}\mock_gtavc" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "GTA_SA_DIR=${{ github.workspace }}\mock_gtasa" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Build (SVGRasterizer San Andreas)
+    - name: Build (DirectImageRasterizer San Andreas)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-SA" /m /verbosity:minimal
+        msbuild DirectImageRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-SA" /m /verbosity:minimal
 
-    - name: Build (SVGRasterizer Vice City)
+    - name: Build (DirectImageRasterizer Vice City)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-VC" /m /verbosity:minimal
+        msbuild DirectImageRasterizer.sln /p:Configuration="Release" /p:Platform="GTA-VC" /m /verbosity:minimal
 
-    - name: Build (SVGRasterizer GTA III)
+    - name: Build (DirectImageRasterizer GTA III)
       continue-on-error: true
       run: |
-        msbuild SVGRasterizer.sln /p:Configuration="Release" /p:Platform="GTA3" /m /verbosity:minimal
+        msbuild DirectImageRasterizer.sln /p:Configuration="Release" /p:Platform="GTA3" /m /verbosity:minimal
 
     - name: Package Plugins into Individual Zips
       if: always()
@@ -103,7 +103,7 @@ jobs:
       if: always()
       shell: powershell
       run: |
-        $projectName = "SVGRasterizer"
+        $projectName = "DirectImageRasterizer"
         $ref = '${{ github.ref }}'
         $refType = '${{ github.ref_type }}'
         $refName = '${{ github.ref_name }}'
